@@ -729,7 +729,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Fix the setupDateNavigation function to ensure Hijri date is properly displayed
+    // Function to setup date navigation
     function setupDateNavigation() {
         const prevDateBtn = document.querySelector('.prev-date');
         const nextDateBtn = document.querySelector('.next-date');
@@ -847,11 +847,47 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
+        // Add swipe gesture support for mobile
+        setupSwipeGestures(header, prevDateHandler, nextDateHandler);
+        
         // Initial call without animation
         updateDisplayedDate();
         
         // Return the update function so it can be called from elsewhere if needed
         return updateDisplayedDate;
+    }
+
+    // Function to setup swipe gestures for mobile
+    function setupSwipeGestures(element, onSwipeLeft, onSwipeRight) {
+        let touchStartX = 0;
+        let touchEndX = 0;
+        const minSwipeDistance = 50; // Minimum distance required for a swipe
+        
+        // Add touch event listeners
+        element.addEventListener('touchstart', function(e) {
+            touchStartX = e.changedTouches[0].screenX;
+        }, { passive: true });
+        
+        element.addEventListener('touchend', function(e) {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        }, { passive: true });
+        
+        // Function to determine swipe direction and trigger appropriate handler
+        function handleSwipe() {
+            const swipeDistance = touchEndX - touchStartX;
+            
+            // Check if swipe distance exceeds minimum threshold
+            if (Math.abs(swipeDistance) >= minSwipeDistance) {
+                if (swipeDistance > 0) {
+                    // Swipe right (previous date)
+                    onSwipeLeft();
+                } else {
+                    // Swipe left (next date)
+                    onSwipeRight();
+                }
+            }
+        }
     }
 
     // Update the initialize function to ensure correct Hijri date display
