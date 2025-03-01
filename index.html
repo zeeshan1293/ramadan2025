@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ramadan Calendar</title>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="loading">
+    <div class="theme-toggle">
+        <button class="theme-button">
+            <i class="fas fa-moon"></i>
+        </button>
+        <button class="settings-button">
+            <i class="fas fa-cog"></i>
+        </button>
+        <div class="settings-dropdown">
+            <div class="settings-section">
+                <h3>Time Format</h3>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="timeFormat" value="12" checked> 12-hour
+                    </label>
+                    <label>
+                        <input type="radio" name="timeFormat" value="24"> 24-hour
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="container">
+        <div class="header">
+            <div class="date">
+                <button class="date-nav prev-date"><i class="fas fa-chevron-left"></i></button>
+                <div class="date-content">
+                    <p></p>
+                    <h1></h1>
+                </div>
+                <button class="date-nav next-date"><i class="fas fa-chevron-right"></i></button>
+            </div>
+            
+            <div class="main-times">
+                <div class="time-block">
+                    <span class="label">SEHR</span>
+                    <span class="time">4:55 AM</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress"></div>
+                </div>
+                <div class="time-block">
+                    <span class="label">IFTAR</span>
+                    <span class="time">6:55 PM</span>
+                </div>
+            </div>
+
+            <div class="prayer-blocks">
+                <div class="prayer-time">
+                    <span class="label">FAJR</span>
+                    <span class="time">4:55 AM</span>
+                </div>
+                <div class="time-indicator">
+                    <i class="material-icons">wb_sunny</i>
+                    <span class="time">6:15 AM</span>
+                </div>
+                <div class="prayer-time">
+                    <span class="label">ZUHR</span>
+                    <span class="time">4:55 AM</span>
+                </div>
+                <div class="prayer-time active">
+                    <span class="label">ASR</span>
+                    <span class="time">4:55 AM</span>
+                </div>
+                <div class="prayer-time">
+                    <span class="label">MAGHRIB</span>
+                    <span class="time">4:55 AM</span>
+                </div>
+                <div class="prayer-time">
+                    <span class="label">ISHA</span>
+                    <span class="time">4:55 AM</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>DATE</th>
+                        <th>SEHR</th>
+                        <th>FAJR</th>
+                        <th>ZUHR</th>
+                        <th>ASR</th>
+                        <th>IFTAR</th>
+                        <th>MAGHRIB</th>
+                        <th>ISHA</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Table rows will be populated via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <script src="script.js"></script>
+    <script>
+        // Remove loading class after page is fully loaded
+        window.addEventListener('load', function() {
+            document.body.classList.remove('loading');
+        });
+    </script>
+</body>
+</html> 

@@ -1,0 +1,1548 @@
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'IBM Plex Mono', monospace;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+    position: relative;
+}
+
+.header {
+    background-color: var(--card-bg);
+    padding: 20px;
+    border-radius: 8px;
+    position: fixed;
+    left: 50%;
+    top: 40%;
+    transform: translate(-50%, -50%);
+    z-index: 1;
+    transition: all 0.3s ease, opacity 0.2s ease, top 0.3s ease-out;
+    opacity: 1;
+    visibility: visible;
+    width: calc(100% - 40px);
+    max-width: 1160px;
+}
+
+/* Add blur overlay for header */
+.header::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -20px;
+    height: 20px;
+    background: linear-gradient(to bottom, 
+        var(--card-bg) 0%,
+        rgba(var(--card-bg-rgb), 0) 100%
+    );
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+/* Style the date section with navigation arrows */
+.date {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    width: 100%;
+}
+
+.date-content {
+    text-align: center;
+    flex: 1;
+    position: relative;
+}
+
+.date-nav {
+    background: transparent;
+    border: none;
+    color: var(--muted-text);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 10px;
+    transition: all 0.2s ease;
+    opacity: 0.7;
+}
+
+.date-nav:hover {
+    color: var(--accent-color);
+    opacity: 1;
+    transform: scale(1.1);
+}
+
+.date-nav:active {
+    transform: scale(0.95);
+}
+
+.date h1 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 500;
+}
+
+.date p {
+    margin: 0 0 5px;
+    color: var(--muted-text);
+    font-size: 14px;
+}
+
+.arabic-date {
+    font-family: 'Traditional Arabic', 'Arial', sans-serif;
+    font-size: 1.2em;
+    direction: rtl;
+}
+
+.english-date {
+    font-size: 0.9em;
+}
+
+.main-times {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 30px 0;
+}
+
+/* Update time block styles */
+.time-block {
+    display: flex;
+    flex-direction: column;
+    width: 150px;
+}
+
+.time-block:last-child {
+    align-items: flex-end; /* Right align IFTAR time */
+}
+
+.time-block .time {
+    font-size: 32px;
+    font-weight: 400;
+    letter-spacing: -1px;
+}
+
+.time-block .label {
+    font-size: 14px;
+    color: #888;
+    margin-bottom: 8px;
+}
+
+.progress-bar {
+    flex-grow: 1;
+    height: 2px;
+    background-color: var(--border-color);
+    margin: 0 20px;
+}
+
+.progress {
+    width: 30%;
+    height: 100%;
+    background-color: var(--accent-color);
+}
+
+.prayer-blocks {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 24px;
+}
+
+.prayer-time {
+    background-color: var(--prayer-box-bg);
+    padding: 11px;
+    border-radius: 6px;
+    flex: 1;
+    text-align: left;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 64px;
+    padding-left: 34px;
+    padding-right: 29px;
+    overflow: hidden;
+    transition: background-color 0.3s;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.prayer-time.active {
+    position: relative;
+    overflow: hidden; /* Ensure the ripple stays contained */
+}
+
+/* Create a separate pulse element that doesn't interfere with the dot */
+.prayer-time.active::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 15px;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    background-color: var(--accent-color);
+    border-radius: 50%;
+    z-index: 5; /* Higher z-index to stay on top */
+    /* No animation on the dot itself */
+}
+
+/* Add a separate element for the pulse animation */
+.prayer-time.active::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 15px;
+    transform: translateY(-50%);
+    width: 8px;
+    height: 8px;
+    background-color: var(--accent-color);
+    border-radius: 50%;
+    z-index: 4; /* Lower z-index than the dot */
+    animation: ripple 6.5s infinite; /* Adjusted from 8s to 6.5s for slightly faster animation */
+    opacity: 0.2; /* Keeping the subtle opacity */
+    pointer-events: none; /* Ensure it doesn't interfere with clicks */
+}
+
+/* Update ripple animation to be even larger with reduced opacity */
+@keyframes ripple {
+    0% {
+        transform: translateY(-50%) scale(1);
+        opacity: 0.2;
+    }
+    70% {
+        transform: translateY(-50%) scale(40);
+        opacity: 0;
+    }
+    70.1% {
+        transform: translateY(-50%) scale(1);
+        opacity: 0;
+    }
+    100% {
+        transform: translateY(-50%) scale(1);
+        opacity: 0.2;
+    }
+}
+
+/* Remove the box-wide pulse animation as it's redundant with the ripple */
+.prayer-time.active .box-pulse {
+    display: none;
+}
+
+/* Use the .checkmark element instead for the checkmark functionality */
+.prayer-time .checkmark {
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted-text);
+    opacity: 0;
+    transition: opacity 0.2s, color 0.2s;
+    font-size: 14px;
+    z-index: 15;
+}
+
+.prayer-time:hover .checkmark {
+    opacity: 0.7;
+}
+
+.prayer-time.completed .checkmark {
+    opacity: 1;
+    color: var(--accent-color);
+    animation: celebrate 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Hide pulse when prayer is completed */
+.prayer-time.active.completed::before,
+.prayer-time.active.completed::after {
+    display: none;
+}
+
+.label {
+    display: block;
+    color: var(--muted-text);
+    font-size: 12px;
+    margin-bottom: 4px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.time {
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0.5px;
+}
+
+.table-container {
+    background-color: var(--card-bg);
+    border-radius: 8px;
+    padding: 20px;
+    overflow-x: auto;
+    flex: 1;
+    position: relative;
+    z-index: 2;
+    transition: all 0.3s ease;
+    margin-top: 65vh;
+}
+
+/* Update scroll detection styles */
+.container.is-scrolled .header {
+    transform: translate(-50%, -50%) scale(0.98) translateY(-10px);
+    background-color: var(--card-bg-transparent);
+    /* Remove the box-shadow */
+    pointer-events: none;
+}
+
+/* Update blur effect for header */
+.container.is-scrolled .header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    backdrop-filter: blur(8px); /* Slightly reduced blur for better readability */
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 8px;
+    z-index: -1;
+    background-color: var(--card-bg-transparent); /* Add semi-transparent background */
+}
+
+/* Update table container blur effect */
+.container.is-scrolled .table-container::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-radius: 8px;
+    z-index: -1;
+    background-color: var(--card-bg-transparent);
+}
+
+/* Update table styles */
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+th, td {
+    padding: 16px 12px;  /* Increased padding */
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color); /* Add right border */
+    border-left: 1px solid var(--border-color); /* Add left border */
+}
+
+/* Remove double borders between cells */
+th:not(:first-child), td:not(:first-child) {
+    border-left: none; /* Remove left border for all cells except first column */
+}
+
+/* Add left border to first column */
+th:first-child, td:first-child {
+    border-left: 1px solid var(--border-color);
+}
+
+/* Add right border to last column */
+th:last-child, td:last-child {
+    border-right: 1px solid var(--border-color);
+}
+
+/* Add top border to header row */
+thead tr th {
+    border-top: 1px solid var(--border-color);
+}
+
+th {
+    color: var(--muted-text);
+    font-weight: normal;
+    font-size: 12px;
+    padding-top: 20px;    /* Extra top padding for header */
+    padding-bottom: 20px; /* Extra bottom padding for header */
+}
+
+td {
+    font-size: 14px;
+    line-height: 1.5;
+    position: relative;
+    transition: color 0.2s;
+    padding-left: 12px; /* Reset left padding to normal */
+    padding-right: 35px; /* Add padding on right for checkmark */
+}
+
+td:first-child {
+    padding-left: 12px; /* Keep original padding for first column */
+}
+
+/* Remove row background hover effect */
+tr:hover {
+    background-color: transparent; /* Remove background color change */
+}
+
+/* Keep border radius for first and last cells */
+tr:hover td:first-child {
+    border-top-left-radius: 6px;
+    border-bottom-left-radius: 6px;
+}
+
+tr:hover td:last-child {
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
+}
+
+/* Update checkmark visibility in table cells - only show on hover */
+td::before {
+    content: '\f00c'; /* FontAwesome checkmark icon */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    position: absolute;
+    left: auto;
+    right: 16px;
+    color: var(--text-color);
+    font-size: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0; /* Hide by default */
+    transition: color 0.2s, opacity 0.2s;
+    transform-origin: center;
+}
+
+/* Show checkmark in grey on hover */
+td:hover::before {
+    opacity: 0.8; /* Show with high opacity on hover */
+    color: var(--muted-text); /* Grey color on hover */
+}
+
+/* Turn checkmark green and add green background for completed cells */
+td.completed {
+    background-color: rgba(var(--accent-color-rgb), 0.05); /* Light green background */
+    color: var(--accent-color); /* Green text color */
+    font-weight: 500;
+}
+
+td.completed::before {
+    color: var(--accent-color); /* Green color when completed */
+    opacity: 1.0;
+    animation: celebrate 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    text-shadow: 0 0 8px rgba(var(--accent-color-rgb), 0.4);
+    transform: translateY(-50%);
+}
+
+/* Current day highlight - update existing styles */
+tr.current-day {
+    background-color: var(--prayer-box-bg);
+}
+
+tr.current-day td {
+    color: var(--accent-color);
+    font-weight: 500;
+    padding-top: 20px;    /* Extra padding for highlighted row */
+    padding-bottom: 20px;
+}
+
+/* Theme Toggle Button */
+.theme-toggle {
+    position: fixed;
+    top: 40px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    gap: 10px;
+}
+
+.theme-button,
+.settings-button {
+    background: transparent;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 10px;
+    font-size: 20px;
+    transition: transform 0.3s;
+}
+
+.theme-button:hover,
+.settings-button:hover {
+    transform: scale(1.1);
+}
+
+.settings-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background-color: var(--card-bg);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 15px;
+    min-width: 200px;
+    margin-top: 10px;
+    display: none;
+    z-index: 1001;
+}
+
+.settings-dropdown.active {
+    display: block;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.settings-section h3 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    color: var(--muted-text);
+    font-weight: 500;
+}
+
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.radio-group label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.radio-group input[type="radio"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Dark Theme (default) */
+:root[data-theme="dark"] {
+    --bg-color: #1a1a1a;
+    --text-color: #ffffff;
+    --card-bg: #242424;
+    --card-bg-transparent: rgba(36, 36, 36, 0.7);
+    --card-bg-rgb: 36, 36, 36;
+    --prayer-box-bg: #2a2a2a;
+    --border-color: #333;
+    --muted-text: #888;
+    --muted-text-dark: #aaa;
+    --muted-text-darker: #ccc; /* Even lighter in dark mode for better contrast */
+    --accent-color: #00ff9d;
+    --accent-color-rgb: 0, 255, 157;
+    --prayer-box-bg-hover: #333333;
+    --prayer-box-bg-past: #272727;
+    --prayer-box-bg-future: #303030;
+    --text-color-rgb: 255, 255, 255;
+    --special-column-bg: rgba(255, 255, 255, 0.03);
+    --special-column-bg-hover: rgba(255, 255, 255, 0.05);
+}
+
+/* Light Theme */
+:root[data-theme="light"] {
+    --bg-color: #f5f5f5;
+    --text-color: #1a1a1a;
+    --card-bg: #ffffff;
+    --card-bg-transparent: rgba(255, 255, 255, 0.7);
+    --card-bg-rgb: 255, 255, 255;
+    --prayer-box-bg: #f0f0f0;
+    --border-color: #e0e0e0;
+    --muted-text: #666;
+    --muted-text-dark: #444;
+    --muted-text-darker: #222; /* Even darker for better contrast */
+    --accent-color: #00b36b;
+    --accent-color-rgb: 0, 179, 107;
+    --prayer-box-bg-hover: #e8e8e8;
+    --prayer-box-bg-past: #e5e5e5;
+    --prayer-box-bg-future: #f7f7f7;
+    --text-color-rgb: 26, 26, 26;
+    --special-column-bg: rgba(0, 0, 0, 0.03);
+    --special-column-bg-hover: rgba(0, 0, 0, 0.05);
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+/* Ensure smooth scrolling */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Add celebration animation for completed cells */
+@keyframes celebrate {
+    0% {
+        transform: translateY(-50%) scale(1);
+        opacity: 0;
+    }
+    20% {
+        transform: translateY(-50%) scale(1.3);
+        opacity: 1;
+    }
+    40% {
+        transform: translateY(-50%) scale(0.95);
+        opacity: 1;
+    }
+    60% {
+        transform: translateY(-50%) scale(1.05);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-50%) scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes float {
+    0% {
+        transform: translate(0, 0) rotate(0deg) scale(0);
+        opacity: 0;
+    }
+    15% {
+        opacity: 1;
+        transform: translate(0, 0) rotate(0deg) scale(1.2);
+    }
+    30% {
+        transform: translate(var(--tx) * 0.3, calc(var(--ty) * 0.3 - 5px)) rotate(var(--r) * 0.3) scale(1);
+        opacity: 0.9;
+    }
+    100% {
+        transform: translate(var(--tx), calc(var(--ty) - 15px)) rotate(var(--r)) scale(0);
+        opacity: 0;
+    }
+}
+
+/* Update celebration position to appear from the right side */
+td.completed .celebration {
+    position: absolute;
+    top: 10%;
+    left: auto; /* Remove left positioning */
+    right: 20px; /* Position from right instead */
+    width: 60px;
+    height: 60px;
+    transform: translate(50%, -50%); /* Adjust transform to work from right */
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* Grey out Date, Sehr and Iftar columns */
+td:nth-child(1), /* Date column */
+td:nth-child(2), /* Sehr column */
+td:nth-child(6)  /* Iftar column */ {
+    color: var(--muted-text); /* Use muted text color */
+    font-weight: normal; /* Ensure normal font weight */
+}
+
+/* Ensure these columns don't change appearance on hover */
+td:nth-child(1):hover,
+td:nth-child(2):hover,
+td:nth-child(6):hover {
+    color: var(--muted-text) !important; /* Force muted color even on hover */
+    background-color: transparent !important; /* Ensure no background change */
+}
+
+/* Ensure current day highlighting still works for these columns */
+tr.current-day td:nth-child(1),
+tr.current-day td:nth-child(2),
+tr.current-day td:nth-child(6) {
+    color: var(--accent-color); /* Keep accent color for current day */
+}
+
+/* Add tactile press animation for cell contents */
+@keyframes cellPress {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(0.97);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Apply tactile animation to cell content */
+td {
+    font-size: 14px;
+    line-height: 1.5;
+    position: relative;
+    transition: color 0.2s;
+    padding-left: 12px;
+}
+
+/* Add a wrapper for cell content to animate */
+td .cell-content {
+    display: inline-block;
+    transform-origin: left center;
+}
+
+/* Apply press animation when cell is clicked */
+td.animate-press .cell-content {
+    animation: cellPress 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Individual celebration particles - more elegant styling */
+td.completed .celebration i {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    font-size: 12px;
+    color: var(--accent-color);
+    text-shadow: 0 0 5px rgba(var(--accent-color-rgb), 0.5);
+    animation: float 1.5s ease-out forwards;
+    opacity: 0;
+}
+
+/* Modify the celebration animation to keep the checkmark in place */
+@keyframes celebrate {
+    0% {
+        transform: translateY(-50%) scale(1);
+        opacity: 0;
+    }
+    20% {
+        transform: translateY(-50%) scale(1.3);
+        opacity: 1;
+    }
+    40% {
+        transform: translateY(-50%) scale(0.95);
+        opacity: 1;
+    }
+    60% {
+        transform: translateY(-50%) scale(1.05);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-50%) scale(1);
+        opacity: 1;
+    }
+}
+
+/* Update the completed checkmark to maintain position */
+td.completed::before {
+    color: var(--accent-color);
+    opacity: 1.0;
+    animation: celebrate 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    text-shadow: 0 0 8px rgba(var(--accent-color-rgb), 0.4);
+    transform: translateY(-50%); /* Ensure it stays vertically centered */
+}
+
+/* Spread out celebration particles more */
+td.completed .celebration {
+    position: absolute;
+    top: 10%;
+    left: auto; /* Remove left positioning */
+    right: 20px; /* Position from right instead */
+    width: 60px; /* Increased from 40px to 60px for more horizontal space */
+    height: 60px; /* Increased from 40px to 60px for more vertical space */
+    transform: translate(50%, -50%); /* Adjust transform to work from right */
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* Adjust particle animation for better spacing */
+/* Delete the entire function createCelebration(cell) {...} from the CSS file */
+
+/* Unified slide animations for header content */
+@keyframes slideInRight {
+    0% {
+        transform: translateX(20px);
+        opacity: 0;
+    }
+    100% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideInLeft {
+    0% {
+        transform: translateX(-20px);
+        opacity: 0;
+    }
+    100% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Apply unified animation to the entire header content */
+.header.animate-right .date-content,
+.header.animate-right .main-times,
+.header.animate-right .prayer-blocks {
+    animation: slideInRight 0.3s ease-out forwards;
+}
+
+.header.animate-left .date-content,
+.header.animate-left .main-times,
+.header.animate-left .prayer-blocks {
+    animation: slideInLeft 0.3s ease-out forwards;
+}
+
+/* Remove staggered delays */
+.header.animate-right .date-content p,
+.header.animate-left .date-content p,
+.header.animate-right .main-times,
+.header.animate-left .main-times,
+.header.animate-right .prayer-blocks,
+.header.animate-left .prayer-blocks {
+    animation-delay: 0s;
+}
+
+/* Remove individual element animations */
+.header.animate-right .date-content h1,
+.header.animate-right .date-content p,
+.header.animate-left .date-content h1,
+.header.animate-left .date-content p {
+    animation: none;
+}
+
+/* Add hover and checkmark styles for prayer boxes */
+.prayer-time::after {
+    content: '\f00c'; /* FontAwesome checkmark icon */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted-text);
+    opacity: 0;
+    transition: opacity 0.2s, color 0.2s;
+    font-size: 14px;
+    z-index: 15; /* Lower than celebration but higher than base */
+}
+
+.prayer-time:hover::after {
+    opacity: 0.7;
+}
+
+.prayer-time.completed::after {
+    opacity: 1;
+    color: var(--accent-color);
+    animation: celebrate 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.prayer-time:hover {
+    background-color: var(--prayer-box-bg-hover);
+}
+
+/* Add celebration styles for prayer boxes */
+.prayer-time.completed .celebration {
+    position: absolute;
+    top: 30%; /* Move up from 40% to 30% to position well above the checkmark */
+    right: 12px;
+    width: 40px;
+    height: 40px;
+    transform: translate(0, -50%);
+    pointer-events: none;
+    z-index: 20;
+    overflow: visible;
+}
+
+/* Adjust particle animation for prayer boxes to start from above */
+.prayer-time.completed .celebration i {
+    position: absolute;
+    font-size: 12px;
+    color: var(--accent-color);
+    text-shadow: 0 0 5px rgba(var(--accent-color-rgb), 0.5);
+    animation: float 1.5s ease-out forwards;
+    opacity: 0;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* Add tactile press animation for prayer boxes */
+@keyframes boxPress {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(0.98);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.prayer-time.animate-press {
+    animation: boxPress 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Add back the checkmark as a separate pseudo-element */
+.prayer-time .checkmark {
+    content: '\f00c'; /* FontAwesome checkmark icon */
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted-text);
+    opacity: 0;
+    transition: opacity 0.2s, color 0.2s;
+    font-size: 14px;
+    z-index: 15;
+}
+
+.prayer-time:hover .checkmark {
+    opacity: 0.7;
+}
+
+.prayer-time.completed .checkmark {
+    opacity: 1;
+    color: var(--accent-color);
+    animation: celebrate 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* Hide pulse when prayer is completed */
+.prayer-time.active.completed::before,
+.prayer-time.active.completed::after {
+    display: none;
+}
+
+/* Update progress bar animation with ease-in-out */
+@keyframes progressGrow {
+    from {
+        width: 0%;
+    }
+    to {
+        width: var(--target-progress);
+    }
+}
+
+.progress.animate {
+    animation: progressGrow 1.5s ease-in-out forwards;
+}
+
+/* Add styles for sunrise and sunset indicators */
+.time-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 8px;
+    color: var(--muted-text);
+    font-size: 12px;
+    opacity: 0.7;
+    transition: opacity 0.3s;
+}
+
+.time-indicator:hover {
+    opacity: 1;
+}
+
+.time-indicator i {
+    margin-bottom: 4px;
+    font-size: 14px;
+    color: var(--muted-text);
+}
+
+/* Prevent color change on hover */
+.time-indicator:hover i {
+    color: var(--muted-text) !important;
+}
+
+/* Prevent opacity change on hover */
+.time-indicator:hover {
+    opacity: 0.7;
+}
+
+/* Style for Material Icons */
+.time-indicator .material-icons {
+    margin-bottom: 4px;
+    font-size: 16px;
+    color: var(--muted-text);
+}
+
+/* Prevent color change on hover */
+.time-indicator:hover .material-icons {
+    color: var(--muted-text) !important;
+}
+
+/* Add styles for past, current, and future prayer times */
+.prayer-time.past {
+    background-color: var(--prayer-box-bg-past);
+}
+
+.prayer-time.active {
+    position: relative;
+    overflow: hidden; /* Ensure the ripple stays contained */
+    background-color: var(--prayer-box-bg); /* Keep the default background for active */
+}
+
+.prayer-time.future {
+    background-color: var(--prayer-box-bg-future);
+}
+
+/* Ensure hover effect is still visible on all prayer states */
+.prayer-time.past:hover,
+.prayer-time.future:hover {
+    background-color: var(--prayer-box-bg-hover);
+}
+
+/* Style for completed prayer boxes */
+.prayer-time.completed {
+    background-color: rgba(0, 255, 157, 0.05); /* Very low opacity green background */
+    border: 1px solid var(--accent-color); /* Green border using the accent color */
+    box-shadow: 0 0 8px rgba(var(--accent-color-rgb), 0.1); /* Subtle glow effect */
+}
+
+/* Ensure hover effect still works with completed state */
+.prayer-time.completed:hover {
+    background-color: rgba(0, 255, 157, 0.08); /* Slightly more visible on hover */
+}
+
+/* Hide checkmarks for Date, Sehr and Iftar columns */
+td:nth-child(1)::before, /* Date column */
+td:nth-child(2)::before, /* Sehr column */
+td:nth-child(6)::before  /* Iftar column */ {
+    display: none;
+}
+
+/* Adjust padding for Date, Sehr and Iftar columns since they don't have checkmarks */
+td:nth-child(1),
+td:nth-child(2),
+td:nth-child(6) {
+    padding-right: 12px; /* Reset to normal padding */
+}
+
+/* Prevent hover effects completely on Date, Sehr and Iftar columns */
+td:nth-child(1):hover,
+td:nth-child(2):hover,
+td:nth-child(6):hover {
+    color: var(--muted-text) !important; /* Force muted color even on hover */
+    background-color: transparent !important; /* Ensure no background change */
+    cursor: default; /* Use default cursor instead of pointer */
+}
+
+/* Style Sehr and Iftar columns to stand out - with theme-specific backgrounds */
+td:nth-child(2), /* Sehr column */
+td:nth-child(6)  /* Iftar column */ {
+    color: var(--text-color) !important; /* Use main text color */
+    font-weight: 500 !important; /* Make text semi-bold */
+    background-color: var(--special-column-bg) !important; /* Use theme variable */
+}
+
+/* Ensure these columns maintain their style on hover */
+td:nth-child(2):hover,
+td:nth-child(6):hover {
+    color: var(--text-color) !important; /* Keep text color on hover */
+    background-color: var(--special-column-bg-hover) !important; /* Use theme variable */
+}
+
+/* Style Sehr and Iftar header cells to match their column styling */
+th:nth-child(2), /* Sehr header */
+th:nth-child(6)  /* Iftar header */ {
+    background-color: var(--special-column-bg) !important; /* Use theme variable */
+    color: var(--text-color); /* Use main text color */
+    font-weight: 500; /* Make text semi-bold */
+}
+
+/* Add subtle border to visually separate these special columns - fixed for both themes */
+th:nth-child(2),
+th:nth-child(6),
+td:nth-child(2),
+td:nth-child(6) {
+    /* Use a semi-transparent border that works in both light and dark themes */
+    border-left: 1px solid rgba(var(--text-color-rgb), 0.1);
+    border-right: 1px solid rgba(var(--text-color-rgb), 0.1);
+}
+
+/* Mobile responsiveness - Update these styles */
+@media (max-width: 768px) {
+    /* Header adjustments */
+    .header {
+        position: relative !important; /* Force relative positioning */
+        left: auto !important;
+        top: auto !important;
+        transform: none !important;
+        width: auto;
+        max-width: none;
+        margin-bottom: 20px;
+        padding: 15px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        opacity: 1 !important; /* Ensure header is always visible */
+        visibility: visible !important;
+    }
+    
+    /* Remove any transitions that might cause jumpy behavior */
+    .header, .container, .table-container {
+        transition: none !important;
+    }
+    
+    /* Ensure the container doesn't have any scroll-dependent styles */
+    .container.is-scrolled .header {
+        transform: none !important;
+        opacity: 1 !important;
+    }
+    
+    /* Disable any scroll animations */
+    .container.is-scrolled {
+        /* Reset any scroll-dependent styles */
+    }
+    
+    /* Ensure table container doesn't have margin-top */
+    .table-container {
+        margin-top: 0 !important;
+    }
+    
+    /* Rest of the mobile styles remain the same */
+    .container {
+        padding: 10px;
+        gap: 20px;
+    }
+    
+    .table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    table {
+        min-width: 650px; /* Ensure table has minimum width */
+    }
+    
+    /* Make date column sticky */
+    th:first-child, 
+    td:first-child {
+        position: sticky;
+        left: 0;
+        background-color: var(--card-bg);
+        z-index: 5;
+        box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Adjust cell padding for mobile */
+    th, td {
+        padding: 12px 8px;
+    }
+    
+    /* Theme toggle position adjustment */
+    .theme-toggle {
+        position: absolute; /* Change from fixed to absolute */
+        top: 10px; /* Reduced from 40px to 10px */
+        right: 10px;
+        z-index: 1000;
+    }
+    
+    /* Add padding to container to make room for the buttons */
+    .container {
+        padding-top: 50px; /* Add padding at the top to make room for the buttons */
+    }
+    
+    /* Ensure the header doesn't overlap with the buttons */
+    .header {
+        margin-top: 10px;
+    }
+    
+    /* Adjust settings dropdown position */
+    .settings-dropdown {
+        right: -10px;
+        min-width: 180px;
+    }
+    
+    /* Scroll indicator to show table is scrollable */
+    .table-container::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 20px;
+        height: 100%;
+        background: linear-gradient(to right, transparent, var(--card-bg));
+        pointer-events: none;
+        opacity: 0.8;
+        z-index: 6;
+    }
+    
+    /* Smaller font sizes for table */
+    th {
+        font-size: 11px;
+    }
+    
+    td {
+        font-size: 13px;
+    }
+    
+    /* Improve time block positioning with proper z-index */
+    .time-block {
+        width: auto;
+        text-align: left;
+        z-index: 3; /* Higher z-index to appear above the progress line */
+        position: relative;
+        padding: 0 5px;
+    }
+    
+    .time-block:last-child {
+        text-align: right;
+    }
+    
+    /* Make time text more visible with proper background */
+    .time-block .time {
+        font-size: 28px;
+        font-weight: 500;
+        display: inline-block; /* Allow background to only cover the text */
+        margin-top: 5px;
+        position: relative;
+        z-index: 3; /* Ensure text is above the line */
+        background-color: var(--card-bg); /* Add background to block the line */
+        padding: 0 5px; /* Add padding around the text */
+    }
+    
+    .time-block .label {
+        display: block;
+        margin-bottom: 8px;
+        position: relative;
+        z-index: 3; /* Ensure label is above the line */
+        background-color: var(--card-bg); /* Add background to block the line */
+        display: inline-block; /* Allow background to only cover the text */
+        padding: 0 5px; /* Add padding around the text */
+    }
+    
+    /* Adjust progress bar to appear below the text */
+    .progress-bar {
+        position: absolute;
+        top: 50%;
+        left: 15%;
+        right: 15%;
+        width: 70%;
+        height: 4px;
+        margin: 0;
+        transform: translateY(10px); /* Move down to avoid text */
+        z-index: 1; /* Lower z-index to appear below the text */
+    }
+    
+    /* Ensure the progress indicator has the same z-index */
+    .progress {
+        z-index: 1;
+        height: 100%;
+    }
+    
+    /* Make prayer boxes smaller in height for mobile */
+    .prayer-blocks {
+        display: flex;
+        justify-content: space-between;
+        gap: 5px; /* Reduce gap between prayer boxes */
+        margin-top: 15px; /* Reduce top margin */
+    }
+    
+    .prayer-time {
+        padding: 8px 8px 8px 30px; /* Reduce padding, keep left padding for active indicator */
+        min-height: 45px; /* Reduce minimum height */
+        background-color: var(--prayer-box-bg) !important; /* Force default background */
+        transition: background-color 0.3s ease;
+    }
+    
+    .prayer-time .label {
+        font-size: 10px; /* Smaller label text */
+        margin-bottom: 2px; /* Less space between label and time */
+    }
+    
+    .prayer-time .time {
+        font-size: 12px; /* Smaller time text */
+    }
+    
+    /* Adjust time indicator (sunrise) to match smaller prayer boxes */
+    .time-indicator {
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 5px;
+    }
+    
+    .time-indicator i,
+    .time-indicator .material-icons {
+        margin-bottom: 0;
+        margin-right: 5px;
+        font-size: 14px;
+    }
+    
+    .time-indicator .time {
+        font-size: 11px;
+    }
+    
+    /* Adjust active prayer indicator position */
+    .prayer-time.active::before,
+    .prayer-time.active::after {
+        left: 12px; /* Move indicator slightly to the left */
+    }
+    
+    /* Only show checkmark on hover for non-completed items */
+    .prayer-time:not(.completed):hover .checkmark {
+        opacity: 0.7;
+    }
+    
+    /* Make sure completed checkmarks are visible */
+    .prayer-time.completed .checkmark {
+        opacity: 1;
+        color: var(--accent-color);
+    }
+    
+    /* Ensure the ::after pseudo-element doesn't show the checkmark */
+    .prayer-time::after {
+        content: none !important;
+    }
+    
+    /* Override any other styles that might be showing the checkmark */
+    .prayer-time:not(.completed) .checkmark,
+    .prayer-time:not(.completed)::after {
+        opacity: 0 !important;
+        visibility: hidden !important;
+    }
+    
+    /* Only apply completed background when actually completed */
+    .prayer-time.completed {
+        background-color: rgba(var(--accent-color-rgb), 0.05) !important; /* Green background */
+        border: 1px solid var(--accent-color) !important; /* Green border */
+    }
+    
+    /* Ensure hover states work correctly */
+    .prayer-time:not(.completed):hover {
+        background-color: var(--prayer-box-bg-hover) !important;
+    }
+    
+    .prayer-time.completed:hover {
+        background-color: rgba(var(--accent-color-rgb), 0.08) !important;
+    }
+    
+    /* Fix active prayer indicator position and visibility */
+    .prayer-time.active::before,
+    .prayer-time.active::after {
+        left: 12px; /* Move indicator slightly to the left */
+        display: block !important; /* Force display */
+        opacity: 1 !important; /* Ensure opacity */
+        visibility: visible !important; /* Ensure visibility */
+    }
+    
+    /* Ensure the pulse animation is visible and working */
+    .prayer-time.active::after {
+        animation: ripple 6.5s infinite !important; /* Force animation */
+        transform-origin: center !important;
+        z-index: 4 !important; /* Ensure proper z-index */
+    }
+    
+    /* Ensure the dot itself is visible */
+    .prayer-time.active::before {
+        z-index: 5 !important; /* Higher z-index to stay on top */
+        width: 8px !important; /* Force width */
+        height: 8px !important; /* Force height */
+        background-color: var(--accent-color) !important; /* Force color */
+    }
+    
+    /* Only hide pulse when prayer is completed */
+    .prayer-time.active.completed::before,
+    .prayer-time.active.completed::after {
+        display: none !important;
+    }
+    
+    /* Add a new pulse element instead of using ::after */
+    .prayer-time.active .pulse-container {
+        display: block !important;
+    }
+    
+    /* Create a new pulse container that's always visible */
+    .prayer-time .pulse-container {
+        position: absolute;
+        top: 50%;
+        left: 12px;
+        transform: translateY(-50%);
+        width: 8px;
+        height: 8px;
+        z-index: 10;
+        display: none;
+    }
+    
+    /* Style the pulse dot */
+    .prayer-time .pulse-dot {
+        width: 8px;
+        height: 8px;
+        background-color: var(--accent-color);
+        border-radius: 50%;
+        position: absolute;
+        z-index: 11;
+    }
+    
+    /* Style the pulse animation */
+    .prayer-time .pulse-animation {
+        width: 8px;
+        height: 8px;
+        background-color: var(--accent-color);
+        border-radius: 50%;
+        position: absolute;
+        z-index: 10;
+        animation: ripple-mobile 6.5s infinite;
+        opacity: 0.2;
+    }
+    
+    /* Hide the original pulse elements */
+    .prayer-time.active::before,
+    .prayer-time.active::after {
+        display: none !important;
+    }
+    
+    /* Only hide pulse when prayer is completed */
+    .prayer-time.active.completed .pulse-container {
+        display: none !important;
+    }
+}
+
+/* Extra small devices */
+@media (max-width: 480px) {
+    /* Adjust for smaller screens */
+    .main-times {
+        height: 70px;
+        margin: 20px 0;
+    }
+    
+    .time-block .time {
+        font-size: 24px;
+        margin-top: 4px;
+    }
+    
+    .time-block .label {
+        margin-bottom: 6px;
+    }
+    
+    /* Adjust progress bar for smaller screens */
+    .progress-bar {
+        left: 20%;
+        right: 20%;
+        width: 60%;
+        transform: translateY(15px); /* Move down more on smaller screens */
+    }
+    
+    /* Further reduce prayer box size for very small screens */
+    .prayer-time {
+        padding: 6px 6px 6px 25px; /* Even smaller padding */
+        min-height: 40px; /* Even smaller height */
+    }
+    
+    /* Make prayer blocks wrap on very small screens */
+    .prayer-blocks {
+        flex-wrap: wrap; /* Allow wrapping on very small screens */
+    }
+    
+    /* If prayer blocks wrap, adjust their width */
+    .prayer-time, .time-indicator {
+        flex: 0 0 calc(33.33% - 5px); /* 3 items per row with small gap */
+        margin-bottom: 5px; /* Add space between rows */
+    }
+    
+    /* Ensure the last row of prayer times aligns properly */
+    .prayer-blocks::after {
+        content: "";
+        flex: 0 0 calc(33.33% - 5px);
+    }
+    
+    /* Reinforce the checkmark hiding for very small screens */
+    .prayer-time:not(.completed) .checkmark {
+        display: none !important;
+    }
+    
+    /* Ensure pulse animation works on very small screens */
+    .prayer-time.active::before,
+    .prayer-time.active::after {
+        left: 10px !important; /* Adjust position for smaller screens */
+        width: 6px !important; /* Slightly smaller dot */
+        height: 6px !important; /* Slightly smaller dot */
+    }
+    
+    /* Adjust ripple animation for smaller screens */
+    @keyframes ripple-mobile {
+        0% {
+            transform: translateY(-50%) scale(1);
+            opacity: 0.2;
+        }
+        70% {
+            transform: translateY(-50%) scale(30); /* Smaller maximum scale for mobile */
+            opacity: 0;
+        }
+        70.1% {
+            transform: translateY(-50%) scale(1);
+            opacity: 0;
+        }
+        100% {
+            transform: translateY(-50%) scale(1);
+            opacity: 0.2;
+        }
+    }
+    
+    /* Apply mobile-specific ripple animation */
+    .prayer-time.active::after {
+        animation: ripple-mobile 6.5s infinite !important;
+    }
+}
+
+/* Adjust the z-index for the time displays */
+.sehri-time, .iftar-time {
+    position: relative;
+    z-index: 2; /* Higher z-index to appear above the progress line */
+}
+
+/* Ensure the progress line has a z-index between the background and the time */
+.progress-line {
+    position: relative;
+    z-index: 1; /* Middle z-index to appear below the time but above the background */
+}
+
+/* Make sure the background has the lowest z-index */
+.time-container {
+    position: relative;
+    z-index: 0; /* Lowest z-index for the background */
+}
+
+/* Update theme toggle positioning for mobile */
+@media (max-width: 768px) {
+    /* Change theme toggle from fixed to absolute positioning */
+    .theme-toggle {
+        position: absolute; /* Change from fixed to absolute */
+        top: 10px; /* Reduced from 40px to 10px */
+        right: 10px;
+        z-index: 1000;
+    }
+    
+    /* Add padding to container to make room for the buttons */
+    .container {
+        padding-top: 50px; /* Add padding at the top to make room for the buttons */
+    }
+    
+    /* Ensure the header doesn't overlap with the buttons */
+    .header {
+        margin-top: 10px;
+    }
+}
+
+/* Extra small devices - further adjustments */
+@media (max-width: 480px) {
+    .theme-toggle {
+        top: 5px; /* Even less space on very small screens */
+        right: 5px;
+    }
+    
+    .theme-button,
+    .settings-button {
+        padding: 8px; /* Smaller padding */
+        font-size: 18px; /* Slightly smaller icons */
+    }
+    
+    /* Adjust container padding for smaller screens */
+    .container {
+        padding-top: 40px;
+    }
+} 
