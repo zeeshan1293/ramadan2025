@@ -1,11 +1,64 @@
 document.addEventListener('DOMContentLoaded', function() {
     const tbody = document.querySelector('tbody');
     const container = document.querySelector('.container');
+    const locationOverlay = document.querySelector('.location-overlay');
+    const allowLocationBtn = document.querySelector('.location-allow');
+    const defaultLocationBtn = document.querySelector('.location-default');
+    const changeLocationBtn = document.querySelector('.change-location-btn');
     
     // Theme Toggle Functionality
     const themeToggle = document.querySelector('.theme-button');
     const root = document.documentElement;
     const overlay = document.querySelector('.theme-transition-overlay');
+    
+    // Add DST detection and adjustment variables
+    let dstAdjustment = 0; // Hours to adjust for DST
+    let dstDetected = false;
+    
+    // Function to detect if a date is in DST
+    function isInDST(date) {
+        // Create a copy of the date to avoid modifying the original
+        const checkDate = new Date(date);
+        
+        // Get the standard time offset for January 1st (non-DST period for most regions)
+        const jan = new Date(checkDate.getFullYear(), 0, 1);
+        const standardOffset = jan.getTimezoneOffset();
+        
+        // Get the offset for the check date
+        const currentOffset = checkDate.getTimezoneOffset();
+        
+        // If current offset is less than standard offset, we're in DST
+        // (getTimezoneOffset returns minutes, and is NEGATIVE in DST)
+        const isDST = currentOffset < standardOffset;
+        
+        console.log(`DST check for ${checkDate.toDateString()}: Standard offset=${standardOffset}, Current offset=${currentOffset}, In DST=${isDST}`);
+        
+        return isDST;
+    }
+    
+    // Function to calculate DST adjustment
+    function calculateDSTAdjustment(date) {
+        // Check if the date is in DST
+        const isDST = isInDST(date);
+        
+        // Calculate the difference in hours
+        if (isDST) {
+            // Get the standard time offset for January 1st
+            const jan = new Date(date.getFullYear(), 0, 1);
+            const standardOffset = jan.getTimezoneOffset();
+            
+            // Get the offset for the current date
+            const currentOffset = date.getTimezoneOffset();
+            
+            // Calculate the difference in hours
+            const diffHours = (standardOffset - currentOffset) / 60;
+            
+            console.log(`DST adjustment: ${diffHours} hours`);
+            return diffHours;
+        }
+        
+        return 0;
+    }
     
     // Set initial theme
     root.setAttribute('data-theme', 'dark');
@@ -24,10 +77,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const settingsButton = document.querySelector('.settings-button');
     const settingsDropdown = document.querySelector('.settings-dropdown');
     const timeFormatRadios = document.querySelectorAll('input[name="timeFormat"]');
+    const asrMethodRadios = document.querySelectorAll('input[name="asrMethod"]');
     
     // Initialize time format from localStorage or default to 12-hour
     let timeFormat = localStorage.getItem('timeFormat') || '12';
     document.querySelector(`input[name="timeFormat"][value="${timeFormat}"]`).checked = true;
+    
+    // Initialize Asr calculation method from localStorage or default to standard
+    let asrMethod = localStorage.getItem('asrMethod') || 'standard';
+    document.querySelector(`input[name="asrMethod"][value="${asrMethod}"]`).checked = true;
     
     // Toggle settings dropdown
     settingsButton.addEventListener('click', (e) => {
@@ -60,17 +118,57 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
+    // Handle Asr calculation method change
+    asrMethodRadios.forEach(radio => {
+        radio.addEventListener('change', async (e) => {
+            asrMethod = e.target.value;
+            localStorage.setItem('asrMethod', asrMethod);
+            
+            // Update prayer times for the current date with new Asr method
+            const dateStr = new Date(document.querySelector('.date h1').textContent).toISOString().split('T')[0];
+            const storedCoords = localStorage.getItem('userCoordinates');
+            let coordinates;
+            
+            if (storedCoords) {
+                coordinates = JSON.parse(storedCoords);
+            } else {
+                coordinates = getDefaultCoordinates();
+            }
+            
+            // Refresh prayer times with new Asr method
+            const timings = await getPrayerTimes(coordinates.lat, coordinates.lng, dateStr);
+            updatePrayerTimes(timings);
+            
+            // Clear the table first
+            tbody.innerHTML = '';
+            
+            // Regenerate the entire table with new Asr method
+            await generateRamadanData(coordinates.lat, coordinates.lng);
+            
+            // Restore completed cells from localStorage
+            restoreCompletedCells();
+        });
+    });
+    
     // Function to format time based on selected format
-    function formatTime(timeStr) {
+    function formatTime(timeStr, isAlreadyAdjusted = false) {
         if (!timeStr) return '';
         
         // Parse the time string (assuming format like "04:30" or "16:45")
         const [hours, minutes] = timeStr.split(':');
-        const hour = parseInt(hours);
+        let hour = parseInt(hours);
+        
+        // Only apply DST adjustment if needed and not already adjusted
+        if (dstDetected && !isAlreadyAdjusted) {
+            hour = (hour + dstAdjustment) % 24;
+        }
+        
+        // Format hours with leading zero if needed
+        const formattedHour = hour.toString().padStart(2, '0');
         
         if (timeFormat === '24') {
             // Return 24-hour format
-            return `${hours}:${minutes}`;
+            return `${formattedHour}:${minutes}`;
         } else {
             // Convert to 12-hour format with AM/PM
             const period = hour >= 12 ? 'PM' : 'AM';
@@ -79,7 +177,22 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Function to update all displayed times
+    // Function to adjust time for DST
+    function adjustTimeForDST(timeStr) {
+        if (!timeStr || !dstDetected) return timeStr;
+        
+        // Parse the time string
+        const [hours, minutes] = timeStr.split(':');
+        let hour = parseInt(hours);
+        
+        // Apply DST adjustment
+        hour = (hour + dstAdjustment) % 24;
+        
+        // Format hours with leading zero if needed
+        return `${hour.toString().padStart(2, '0')}:${minutes}`;
+    }
+    
+    // Function to update all displayed times - pass the flag to formatTime
     function updateAllDisplayedTimes() {
         // Update table cells
         document.querySelectorAll('tbody td:not(:first-child)').forEach(cell => {
@@ -87,7 +200,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (timeText && timeText.includes(':')) {
                 // Extract just the time part if it has AM/PM
                 const timePart = timeText.split(' ')[0];
-                cell.textContent = formatTime(timePart);
+                // Pass true to indicate times are already adjusted
+                cell.textContent = formatTime(timePart, true);
             }
         });
         
@@ -97,7 +211,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (timeText && timeText.includes(':')) {
                 // Extract just the time part if it has AM/PM
                 const timePart = timeText.split(' ')[0];
-                timeElement.textContent = formatTime(timePart);
+                // Pass true to indicate times are already adjusted
+                timeElement.textContent = formatTime(timePart, true);
             }
         });
     }
@@ -120,52 +235,154 @@ document.addEventListener('DOMContentLoaded', function() {
         return timezoneMap[timezone] || { lat: 21.4225, lng: 39.8262 }; // Default to Mecca if timezone not found
     }
 
-    // Function to get prayer times
+    // Function to get prayer times - updated to handle DST and Asr method
     async function getPrayerTimes(latitude, longitude, date) {
-        const response = await fetch(`https://api.aladhan.com/v1/timings/${date}?latitude=${latitude}&longitude=${longitude}&method=2`);
-        const data = await response.json();
-        return data.data.timings;
+        // Get the Asr calculation method from localStorage
+        const asrMethod = localStorage.getItem('asrMethod') || 'standard';
+        
+        // Convert to API method parameter
+        // For more accurate results, we should use a method appropriate for the user's location
+        // Let's use a more dynamic approach based on coordinates
+        
+        // Determine the best calculation method based on region
+        let methodParam = 3; // Default to Muslim World League
+        
+        // Check region based on coordinates to select appropriate method
+        if (longitude > -20 && longitude < 40 && latitude > 20 && latitude < 50) {
+            // Europe, Middle East, North Africa
+            methodParam = 3; // Muslim World League
+        } else if (longitude > 40 && longitude < 100 && latitude > 20 && latitude < 45) {
+            // South Asia
+            methodParam = 1; // University of Islamic Sciences, Karachi
+        } else if (longitude > -140 && longitude < -50 && latitude > 20 && latitude < 60) {
+            // North America
+            methodParam = 2; // Islamic Society of North America
+        } else if (longitude > 100 && longitude < 180 && latitude > -10 && latitude < 60) {
+            // East Asia, Australia
+            methodParam = 11; // Singapore
+        }
+        
+        // For Hanafi Asr, we need to use the school parameter
+        const schoolParam = asrMethod === 'hanafi' ? 1 : 0; // 1 for Hanafi, 0 for Shafi
+        
+        // Build the API URL with explicit parameters
+        const apiUrl = `https://api.aladhan.com/v1/timings/${date}?latitude=${latitude}&longitude=${longitude}&method=${methodParam}&school=${schoolParam}`;
+        
+        console.log(`Fetching prayer times with URL: ${apiUrl}`);
+        console.log(`Current Asr method: ${asrMethod}, School param: ${schoolParam}, Method param: ${methodParam}`);
+        
+        try {
+            const response = await fetch(apiUrl);
+            if (!response.ok) {
+                throw new Error(`API request failed with status ${response.status}`);
+            }
+            const data = await response.json();
+            
+            console.log("API response:", data);
+            
+            // Check if we need to adjust for DST using the improved function
+            const dateObj = new Date(date);
+            dstAdjustment = calculateDSTAdjustment(dateObj);
+            dstDetected = dstAdjustment !== 0;
+            
+            console.log(`DST detected: ${dstDetected}, Adjustment: ${dstAdjustment} hours`);
+            
+            // If DST is detected, adjust all times
+            if (dstDetected) {
+                const timings = data.data.timings;
+                const adjustedTimings = {};
+                
+                for (const [prayer, time] of Object.entries(timings)) {
+                    adjustedTimings[prayer] = adjustTimeForDST(time);
+                }
+                
+                // Add a flag to indicate these times are already adjusted
+                adjustedTimings._dstAdjusted = true;
+                return adjustedTimings;
+            }
+            
+            return data.data.timings;
+        } catch (error) {
+            console.error('Error fetching prayer times:', error);
+            // Return fallback times in case of API failure
+            return getFallbackPrayerTimes(date, latitude, longitude);
+        }
+    }
+
+    // Add a fallback function for prayer times in case the API fails
+    function getFallbackPrayerTimes(date, latitude, longitude) {
+        // Simple fallback calculation based on approximate times
+        // This is not accurate but better than showing nothing
+        const dateObj = new Date(date);
+        const month = dateObj.getMonth();
+        const isWinter = month >= 9 || month <= 2; // Oct-Mar
+        
+        // Adjust times based on season and rough latitude
+        let fajrOffset = isWinter ? 90 : 60; // Minutes before sunrise
+        let maghribOffset = 15; // Minutes after sunset
+        let ishaOffset = isWinter ? 90 : 120; // Minutes after maghrib
+        
+        // Adjust for latitude (higher latitudes have more extreme times)
+        if (Math.abs(latitude) > 45) {
+            fajrOffset += 30;
+            ishaOffset += 30;
+        }
+        
+        // Calculate approximate sunrise and sunset based on latitude and date
+        // This is a very rough approximation
+        const dayOfYear = Math.floor((dateObj - new Date(dateObj.getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
+        const sunriseHour = isWinter ? 7 : 5;
+        const sunsetHour = isWinter ? 17 : 20;
+        
+        // Create fallback times
+        const fallbackTimes = {
+            Fajr: formatTimeString(sunriseHour - Math.floor(fajrOffset / 60), 30),
+            Sunrise: formatTimeString(sunriseHour, 0),
+            Dhuhr: formatTimeString(12, 30),
+            Asr: formatTimeString(15, 30),
+            Sunset: formatTimeString(sunsetHour, 0),
+            Maghrib: formatTimeString(sunsetHour, maghribOffset),
+            Isha: formatTimeString(sunsetHour + Math.floor(ishaOffset / 60), (ishaOffset % 60)),
+            _dstAdjusted: false
+        };
+        
+        console.log("Using fallback prayer times:", fallbackTimes);
+        return fallbackTimes;
+    }
+
+    // Helper function to format time string for fallback times
+    function formatTimeString(hours, minutes) {
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
     }
 
     // Update the getRamadanDates function
     async function getRamadanDates(year = 2025) {
-        // Hardcode the start date for Ramadan 2025 (March 1st)
-        // We'll use this as a fallback if the API fails
-        const startDate = new Date(2025, 2, 1); // Month is 0-based, so 2 is March
         const dates = [];
         
         try {
-            const response = await fetch(`https://api.aladhan.com/v1/hijriCalendar/1446/9`);
-            const data = await response.json();
+            // Instead of relying on the API, let's hardcode the Ramadan dates for 2025
+            // March 1st is 1 Ramadan 1446
+            const startDate = new Date(2025, 2, 1); // Month is 0-based, so 2 is March
             
-            if (data.code === 200 && data.data && data.data.length > 0) {
-                // Use API date if available
-                const apiStartDate = new Date(data.data[0].gregorian.date);
-                // Generate 30 days of Ramadan using API date
-                for (let i = 0; i < 30; i++) {
-                    const date = new Date(apiStartDate);
-                    date.setDate(apiStartDate.getDate() + i);
-                    dates.push(date);
-                }
-            } else {
-                // Fallback to hardcoded date if API fails
-                for (let i = 0; i < 30; i++) {
-                    const date = new Date(startDate);
-                    date.setDate(startDate.getDate() + i);
-                    dates.push(date);
-                }
-            }
-        } catch (error) {
-            console.error('Error fetching Ramadan dates:', error);
-            // Fallback to hardcoded date if API fails
+            // Generate all 30 days of Ramadan
             for (let i = 0; i < 30; i++) {
                 const date = new Date(startDate);
                 date.setDate(startDate.getDate() + i);
                 dates.push(date);
             }
+            
+            return dates;
+        } catch (error) {
+            console.error('Error generating Ramadan dates:', error);
+            // Fallback to hardcoded dates
+            const startDate = new Date(2025, 2, 1); // March 1st, 2025
+            for (let i = 0; i < 30; i++) {
+                const date = new Date(startDate);
+                date.setDate(startDate.getDate() + i);
+                dates.push(date);
+            }
+            return dates;
         }
-        
-        return dates;
     }
 
     // Function to format date as "D MMM"
@@ -177,6 +394,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Function to update UI with prayer times
     function updatePrayerTimes(timings) {
+        // Check if timings are already DST-adjusted
+        const isAlreadyAdjusted = timings._dstAdjusted === true;
+        
         // Remove active class from all prayer times
         document.querySelectorAll('.prayer-time').forEach(el => {
             el.classList.remove('active');
@@ -213,7 +433,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.prayer-time').forEach(el => {
                 el.classList.add('past');
             });
-            return; // No need to continue with time-specific logic for past days
+            // Continue with time updates even for past days
         }
         
         // If this is a future day, mark all prayers as future
@@ -221,24 +441,26 @@ document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.prayer-time').forEach(el => {
                 el.classList.add('future');
             });
-            return; // No need to continue with time-specific logic for future days
+            // Continue with time updates even for future days
         }
         
         // Update main times with formatted time
-        document.querySelector('.time-block:first-child .time').textContent = formatTime(timings.Fajr);
-        document.querySelector('.time-block:last-child .time').textContent = formatTime(timings.Maghrib);
+        document.querySelector('.time-block:first-child .time').textContent = 
+            formatTime(timings.Fajr, isAlreadyAdjusted);
+        document.querySelector('.time-block:last-child .time').textContent = 
+            formatTime(timings.Maghrib, isAlreadyAdjusted);
 
         // Update prayer blocks with formatted time
         const prayerElements = document.querySelectorAll('.prayer-time .time');
-        prayerElements[0].textContent = formatTime(timings.Fajr);
-        prayerElements[1].textContent = formatTime(timings.Dhuhr);
-        prayerElements[2].textContent = formatTime(timings.Asr);
-        prayerElements[3].textContent = formatTime(timings.Maghrib);
-        prayerElements[4].textContent = formatTime(timings.Isha);
+        prayerElements[0].textContent = formatTime(timings.Fajr, isAlreadyAdjusted);
+        prayerElements[1].textContent = formatTime(timings.Dhuhr, isAlreadyAdjusted);
+        prayerElements[2].textContent = formatTime(timings.Asr, isAlreadyAdjusted);
+        prayerElements[3].textContent = formatTime(timings.Maghrib, isAlreadyAdjusted);
+        prayerElements[4].textContent = formatTime(timings.Isha, isAlreadyAdjusted);
         
         // Update only sunrise time indicator
         const timeIndicators = document.querySelectorAll('.time-indicator .time');
-        timeIndicators[0].textContent = formatTime(timings.Sunrise);
+        timeIndicators[0].textContent = formatTime(timings.Sunrise, isAlreadyAdjusted);
 
         // Handle current day - mark past prayers and set active prayer
         if (isToday) {
@@ -301,49 +523,64 @@ document.addEventListener('DOMContentLoaded', function() {
         tbody.innerHTML = ''; // Clear existing rows
         const ramadanDates = await getRamadanDates();
         const today = new Date();
-        const ramadanStartDate = new Date(2025, 2, 1); // March 1st, 2025
-        const ramadanEndDate = new Date(2025, 2, 30); // March 30th, 2025
+        today.setHours(0, 0, 0, 0); // Set to midnight for date comparison
+        
+        // Get the current Asr method from localStorage
+        const asrMethod = localStorage.getItem('asrMethod') || 'standard';
         
         for (const date of ramadanDates) {
             const dateStr = date.toISOString().split('T')[0];
+            // Pass the current Asr method to getPrayerTimes
             const timings = await getPrayerTimes(latitude, longitude, dateStr);
+            const isAlreadyAdjusted = timings._dstAdjusted === true;
             
             const row = document.createElement('tr');
+            
+            // Check if this date is in the future
+            const rowDate = new Date(date);
+            rowDate.setHours(0, 0, 0, 0); // Set to midnight for comparison
+            if (rowDate > today) {
+                row.classList.add('future-date'); // Add class for future dates
+            }
+            
+            // Check if this date is today
+            if (rowDate.getTime() === today.getTime()) {
+                row.classList.add('current-date'); // Add class for current date
+            }
+            
             row.innerHTML = `
                 <td>${formatDate(date)}</td>
-                <td>${formatTime(timings.Fajr)}</td>
-                <td>${formatTime(timings.Fajr)}</td>
-                <td>${formatTime(timings.Dhuhr)}</td>
-                <td>${formatTime(timings.Asr)}</td>
-                <td>${formatTime(timings.Maghrib)}</td>
-                <td>${formatTime(timings.Maghrib)}</td>
-                <td>${formatTime(timings.Isha)}</td>
+                <td>${formatTime(timings.Fajr, isAlreadyAdjusted)}</td>
+                <td>${formatTime(timings.Dhuhr, isAlreadyAdjusted)}</td>
+                <td>${formatTime(timings.Asr, isAlreadyAdjusted)}</td>
+                <td>${formatTime(timings.Maghrib, isAlreadyAdjusted)}</td>
+                <td>${formatTime(timings.Isha, isAlreadyAdjusted)}</td>
             `;
-            
-            // Only highlight if today is within Ramadan 2025 and matches the current date
-            if (today >= ramadanStartDate && today <= ramadanEndDate && 
-                date.getDate() === today.getDate() && 
-                date.getMonth() === today.getMonth() && 
-                date.getFullYear() === today.getFullYear()) {
-                row.classList.add('current-day');
-            }
             
             tbody.appendChild(row);
         }
         
         // Add click event listeners to all table cells
         addCellClickHandlers();
+        
+        // After restoring completed cells, check for fully completed rows
+        setTimeout(checkCompletedRows, 100);
     }
     
-    // Add this function to handle cell clicks with celebration animation
+    // Update the addCellClickHandlers function to fix the animation glitch
     function addCellClickHandlers() {
         const cells = document.querySelectorAll('tbody td');
         
         cells.forEach(cell => {
-            // Skip Sehr, Iftar, and Date columns (1st, 2nd and 6th columns)
+            // Skip only Date column (1st column)
             const cellIndex = cell.cellIndex;
-            if (cellIndex === 0 || cellIndex === 1 || cellIndex === 5) { // 0-based index, so 0, 1 and 5
-                return; // Skip these columns
+            if (cellIndex === 0) { // 0-based index, so only skip the first column
+                return; // Skip date column
+            }
+            
+            // Skip cells in future date rows
+            if (cell.parentElement.classList.contains('future-date')) {
+                return; // Skip cells in future dates
             }
             
             // Wrap cell content in a span for animation
@@ -360,19 +597,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     this.classList.remove('animate-press');
                 }, 300);
                 
+                // IMPORTANT: First remove any existing celebration to prevent glitches
+                const existingCelebration = this.querySelector('.celebration');
+                if (existingCelebration) {
+                    existingCelebration.remove();
+                }
+                
                 // Toggle completed state
                 this.classList.toggle('completed');
                 
                 // Only show celebration when completing, not when uncompleting
-                if (!wasCompleted) {
-                    createCelebration(this);
+                if (!wasCompleted && this.classList.contains('completed')) {
+                    // Small delay to ensure the checkmark is visible first
+                    setTimeout(() => createCelebration(this), 50);
                 }
                 
                 // Save completed state to localStorage
                 saveCompletedCells();
                 
-                // Sync with prayer box
-                syncTableCellWithPrayerBox(this);
+                // Sync with prayer box and localStorage
+                syncTableCellWithLocalStorage(this);
             });
         });
     }
@@ -435,6 +679,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         localStorage.setItem('ramadanCompletedCells', JSON.stringify(completedCells));
+        
+        // Check for fully completed rows
+        checkCompletedRows();
     }
     
     // Function to restore completed cells from localStorage
@@ -452,7 +699,37 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Update date navigation to include animations for all elements
+    // Add a new function to check for rows with all prayers completed
+    function checkCompletedRows() {
+        const rows = document.querySelectorAll('tbody tr');
+        
+        rows.forEach(row => {
+            // Skip future dates
+            if (row.classList.contains('future-date')) {
+                return;
+            }
+            
+            // Get all prayer cells in this row (columns 2-6)
+            const prayerCells = row.querySelectorAll('td:nth-child(2), td:nth-child(3), td:nth-child(4), td:nth-child(5), td:nth-child(6)');
+            
+            // Check if all prayer cells are completed
+            let allCompleted = true;
+            prayerCells.forEach(cell => {
+                if (!cell.classList.contains('completed')) {
+                    allCompleted = false;
+                }
+            });
+            
+            // Add or remove the all-completed class based on the check
+            if (allCompleted && prayerCells.length > 0) {
+                row.classList.add('all-completed');
+            } else {
+                row.classList.remove('all-completed');
+            }
+        });
+    }
+
+    // Fix the setupDateNavigation function to ensure Hijri date is properly displayed
     function setupDateNavigation() {
         const prevDateBtn = document.querySelector('.prev-date');
         const nextDateBtn = document.querySelector('.next-date');
@@ -460,7 +737,7 @@ document.addEventListener('DOMContentLoaded', function() {
         let currentDate = new Date();
         
         // Update displayed date with animation
-        function updateDisplayedDate(direction) {
+        async function updateDisplayedDate(direction) {
             // Add animation class based on direction
             header.classList.remove('animate-left', 'animate-right');
             void header.offsetWidth; // Force reflow to restart animation
@@ -479,49 +756,66 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             document.querySelector('.date h1').textContent = gregorianDate;
             
-            // Get Hijri date
+            // Get the date string for API calls
             const dateStr = currentDate.toISOString().split('T')[0];
-            getHijriDate(dateStr).then(islamicDate => {
-                document.querySelector('.date p').textContent = islamicDate;
-            });
             
-            // Update prayer times for the selected date
-            const { lat, lng } = getDefaultCoordinates();
-            getPrayerTimes(lat, lng, dateStr).then(timings => {
-                updatePrayerTimes(timings);
-                
-                // Update progress bar after prayer times are updated
-                setTimeout(() => {
-                    updateProgressBar();
-                    restorePrayerBoxStates(); // Restore prayer box states for the new date
-                }, 100);
-            });
+            // IMPORTANT: Force Ramadan display for March 2024
+            const month = currentDate.getMonth();
+            const day = currentDate.getDate();
+            const year = currentDate.getFullYear();
+            
+            // Direct hardcoded check for Ramadan 2024
+            if (year === 2024 && month === 2 && day >= 1 && day <= 31) {
+                document.querySelector('.date p').textContent = `${day} Ramadan 1445 AH`;
+            } 
+            // April 2024 (continuation of Ramadan)
+            else if (year === 2024 && month === 3 && day <= 9) {
+                const ramadanDay = day + 31;
+                if (ramadanDay <= 30) {
+                    document.querySelector('.date p').textContent = `${ramadanDay} Ramadan 1445 AH`;
+                } else {
+                    const shawwalDay = ramadanDay - 30;
+                    document.querySelector('.date p').textContent = `${shawwalDay} Shawwal 1445 AH`;
+                }
+            }
+            // Ramadan 2025
+            else if (year === 2025 && month === 2 && day >= 1 && day <= 30) {
+                document.querySelector('.date p').textContent = `${day} Ramadan 1446 AH`;
+            }
+            // For other dates, use the API
+            else {
+                try {
+                    const islamicDate = await getHijriDate(dateStr);
+                    document.querySelector('.date p').textContent = islamicDate;
+                } catch (error) {
+                    console.error('Error getting Hijri date:', error);
+                    document.querySelector('.date p').textContent = "Islamic Date";
+                }
+            }
+            
+            // Use stored coordinates instead of requesting them again
+            const storedCoords = localStorage.getItem('userCoordinates');
+            let coordinates;
+            
+            if (storedCoords) {
+                coordinates = JSON.parse(storedCoords);
+            } else {
+                coordinates = await getUserLocation();
+            }
+            
+            // Update prayer times for the selected date using stored coordinates
+            const timings = await getPrayerTimes(coordinates.lat, coordinates.lng, dateStr);
+            updatePrayerTimes(timings);
+            
+            // Update progress bar after prayer times are updated
+            setTimeout(() => {
+                updateProgressBar();
+                restorePrayerBoxStates(); // Restore prayer box states for the new date
+            }, 100);
             
             // Reset progress bar animation state
             const progressBar = document.querySelector('.progress');
             progressBar.classList.remove('animated');
-        }
-        
-        // Get Hijri date (extracted from initialize function)
-        async function getHijriDate(dateStr) {
-            try {
-                const response = await fetch(`https://api.aladhan.com/v1/gToH?date=${dateStr}`);
-                const data = await response.json();
-                
-                if (data.code === 200 && data.data) {
-                    const hijri = data.data.hijri;
-                    return `${hijri.day} ${hijri.month.en} ${hijri.year} AH`;
-                } else {
-                    // Fallback to local calculation
-                    const hijriDate = gregorianToHijri(new Date(dateStr));
-                    return `${hijriDate.day} ${hijriDate.month} ${hijriDate.year} AH`;
-                }
-            } catch (error) {
-                console.error('Error fetching Hijri date:', error);
-                // Fallback to local calculation
-                const hijriDate = gregorianToHijri(new Date(dateStr));
-                return `${hijriDate.day} ${hijriDate.month} ${hijriDate.year} AH`;
-            }
         }
         
         // Make sure to remove any existing event listeners before adding new ones
@@ -560,13 +854,21 @@ document.addEventListener('DOMContentLoaded', function() {
         return updateDisplayedDate;
     }
 
-    // Update the initialize function to ensure setupDateNavigation is called properly
+    // Update the initialize function to ensure correct Hijri date display
     async function initialize() {
-        const { lat, lng } = getDefaultCoordinates();
+        // Get user coordinates with fallback to defaults - this should only happen once
+        const coordinates = await getUserLocation();
+        
+        // Store coordinates in localStorage for future use
+        localStorage.setItem('userCoordinates', JSON.stringify(coordinates));
         
         // Use actual today's date for the header
         const realToday = new Date();
         const todayStr = realToday.toISOString().split('T')[0];
+        
+        // Check for DST and set adjustment
+        dstAdjustment = calculateDSTAdjustment(realToday);
+        dstDetected = dstAdjustment !== 0;
         
         // Set Gregorian date
         const gregorianDate = realToday.toLocaleDateString('en-US', {
@@ -576,33 +878,20 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         document.querySelector('.date h1').textContent = gregorianDate;
         
-        // Get accurate Hijri date using API
+        // Get Hijri date using our updated function
         try {
-            const response = await fetch(`https://api.aladhan.com/v1/gToH?date=${todayStr}`);
-            const data = await response.json();
-            
-            if (data.code === 200 && data.data) {
-                const hijri = data.data.hijri;
-                const islamicDate = `${hijri.day} ${hijri.month.en} ${hijri.year} AH`;
-                document.querySelector('.date p').textContent = islamicDate;
-            } else {
-                // Fallback to local calculation if API fails
-                const hijriDate = gregorianToHijri(realToday);
-                const islamicDate = `${hijriDate.day} ${hijriDate.month} ${hijriDate.year} AH`;
-                document.querySelector('.date p').textContent = islamicDate;
-            }
-        } catch (error) {
-            console.error('Error fetching Hijri date:', error);
-            // Fallback to local calculation
-            const hijriDate = gregorianToHijri(realToday);
-            const islamicDate = `${hijriDate.day} ${hijriDate.month} ${hijriDate.year} AH`;
+            const islamicDate = await getHijriDate(todayStr);
             document.querySelector('.date p').textContent = islamicDate;
+        } catch (error) {
+            console.error('Error setting Hijri date:', error);
+            // Fallback to a simple message if there's an error
+            document.querySelector('.date p').textContent = "Islamic Date";
         }
         
-        // Get prayer times for today
-        const timings = await getPrayerTimes(lat, lng, todayStr);
+        // Get prayer times for today using user's coordinates
+        const timings = await getPrayerTimes(coordinates.lat, coordinates.lng, todayStr);
         updatePrayerTimes(timings);
-        await generateRamadanData(lat, lng);
+        await generateRamadanData(coordinates.lat, coordinates.lng);
         
         // Restore completed cells from localStorage
         restoreCompletedCells();
@@ -662,8 +951,89 @@ document.addEventListener('DOMContentLoaded', function() {
         setupMobilePulseAnimation();
     }
 
-    // Start the application
-    initialize();
+    // Show location overlay if no coordinates are stored
+    function checkLocationPermission() {
+        const storedCoords = localStorage.getItem('userCoordinates');
+        
+        if (!storedCoords) {
+            // Show the location overlay
+            locationOverlay.classList.add('active');
+            document.body.style.overflow = 'hidden'; // Prevent scrolling
+        } else {
+            // If we already have coordinates, proceed with initialization
+            initialize();
+        }
+    }
+    
+    // Handle location permission buttons
+    allowLocationBtn.addEventListener('click', function() {
+        if (navigator.geolocation) {
+            // Show loading state
+            this.textContent = 'Getting location...';
+            this.disabled = true;
+            
+            navigator.geolocation.getCurrentPosition(
+                // Success callback
+                function(position) {
+                    const coordinates = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    };
+                    
+                    // Store coordinates in localStorage
+                    localStorage.setItem('userCoordinates', JSON.stringify(coordinates));
+                    
+                    // Hide overlay and initialize app
+                    locationOverlay.classList.remove('active');
+                    document.body.style.overflow = '';
+                    initialize();
+                },
+                // Error callback
+                function(error) {
+                    console.error('Error getting location:', error);
+                    allowLocationBtn.textContent = 'Allow Location Access';
+                    allowLocationBtn.disabled = false;
+                    
+                    // Show error message
+                    alert('Unable to get your location. Please try again or use the default location.');
+                },
+                // Options
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+        } else {
+            alert('Geolocation is not supported by your browser. Please use the default location or enter coordinates manually.');
+        }
+    });
+    
+    // Handle default location button
+    defaultLocationBtn.addEventListener('click', function() {
+        const defaultCoords = getDefaultCoordinates();
+        localStorage.setItem('userCoordinates', JSON.stringify(defaultCoords));
+        
+        // Hide overlay and initialize app
+        locationOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+        initialize();
+    });
+    
+    // Handle change location button in settings
+    changeLocationBtn.addEventListener('click', function() {
+        // Close settings dropdown
+        document.querySelector('.settings-dropdown').classList.remove('active');
+        
+        // Show location overlay
+        locationOverlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        
+        // No need to pre-fill coordinates anymore since we removed that option
+    });
+
+    // Start the application by checking location permission first
+    checkLocationPermission();
 
     // Update progress bar based on current time and selected date
     function updateProgressBar() {
@@ -726,37 +1096,6 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(updateProgressBar, 60000);
     updateProgressBar();
 
-    // Update the scroll event listener
-    window.addEventListener('scroll', () => {
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-        const header = document.querySelector('.header');
-        
-        if (scrollTop > 10) {
-            container.classList.add('is-scrolled');
-            
-            // Calculate opacity based on scroll position
-            const opacity = Math.max(0, 1 - (scrollTop / 200));
-            header.style.opacity = opacity;
-            
-            // Calculate vertical movement (move up max 20px, and only for first 100px of scroll)
-            const moveUp = Math.min(20, (scrollTop < 100 ? scrollTop / 5 : 20));
-            const newTop = 40 - moveUp / 2; // Start from 40% and move up slightly
-            header.style.top = `${newTop}%`;
-            
-            // When almost invisible, hide it completely
-            if (opacity < 0.05) {
-                header.style.visibility = 'hidden';
-            } else {
-                header.style.visibility = 'visible';
-            }
-        } else {
-            container.classList.remove('is-scrolled');
-            header.style.opacity = 1;
-            header.style.visibility = 'visible';
-            header.style.top = '40%'; // Reset to original position
-        }
-    });
-
     // Improve the gregorianToHijri function with more accurate calculations
     function gregorianToHijri(date) {
         // This is a more accurate algorithm for Gregorian to Hijri conversion
@@ -805,6 +1144,14 @@ document.addEventListener('DOMContentLoaded', function() {
         const prayerBoxes = document.querySelectorAll('.prayer-time');
         
         prayerBoxes.forEach(box => {
+            // Add checkmark element if it doesn't exist
+            if (!box.querySelector('.checkmark-icon')) {
+                const checkmark = document.createElement('span');
+                checkmark.className = 'checkmark-icon';
+                checkmark.innerHTML = '&#xf00c;'; // FontAwesome checkmark
+                box.appendChild(checkmark);
+            }
+            
             // Add click handler
             box.addEventListener('click', function() {
                 const wasCompleted = this.classList.contains('completed');
@@ -871,19 +1218,19 @@ document.addEventListener('DOMContentLoaded', function() {
             
             switch (prayerName) {
                 case 'FAJR':
-                    cellIndex = 2; // 3rd column (0-indexed)
+                    cellIndex = 1; // 2nd column (0-indexed)
                     break;
                 case 'ZUHR':
-                    cellIndex = 3; // 4th column
+                    cellIndex = 2; // 3rd column
                     break;
                 case 'ASR':
-                    cellIndex = 4; // 5th column
+                    cellIndex = 3; // 4th column
                     break;
                 case 'MAGHRIB':
-                    cellIndex = 6; // 7th column
+                    cellIndex = 4; // 5th column
                     break;
                 case 'ISHA':
-                    cellIndex = 7; // 8th column
+                    cellIndex = 5; // 6th column
                     break;
             }
             
@@ -911,7 +1258,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return `${day} ${month}`;
     }
 
-    // Function to save prayer box states
+    // Function to save prayer box states - FIXED to use unique identifiers
     function savePrayerBoxStates() {
         const completedBoxes = [];
         document.querySelectorAll('.prayer-time.completed').forEach((box, index) => {
@@ -921,7 +1268,31 @@ document.addEventListener('DOMContentLoaded', function() {
             completedBoxes.push(`${date}-${prayerName}`);
         });
         
-        localStorage.setItem('ramadanCompletedPrayers', JSON.stringify(completedBoxes));
+        // Get existing saved states
+        const existingSavedBoxes = localStorage.getItem('ramadanCompletedPrayers');
+        let allCompletedBoxes = [];
+        
+        if (existingSavedBoxes) {
+            // Parse existing saved states
+            const existingBoxes = JSON.parse(existingSavedBoxes);
+            
+            // Get current date
+            const currentDate = document.querySelector('.date h1').textContent;
+            
+            // Filter out any existing entries for the current date
+            allCompletedBoxes = existingBoxes.filter(entry => {
+                // Extract date part from the entry
+                const entryDate = entry.split('-')[0];
+                // Keep entries that don't match the current date
+                return entryDate !== currentDate;
+            });
+        }
+        
+        // Add current day's completed prayers
+        allCompletedBoxes = [...allCompletedBoxes, ...completedBoxes];
+        
+        // Save all completed prayers back to localStorage
+        localStorage.setItem('ramadanCompletedPrayers', JSON.stringify(allCompletedBoxes));
     }
 
     // Function to restore prayer box states
@@ -931,92 +1302,115 @@ document.addEventListener('DOMContentLoaded', function() {
             const completedBoxes = JSON.parse(savedBoxes);
             const currentDate = document.querySelector('.date h1').textContent;
             
+            // Reset all prayer boxes first
+            document.querySelectorAll('.prayer-time').forEach(box => {
+                box.classList.remove('completed');
+            });
+            
+            // Then apply completed state only to those matching current date
             document.querySelectorAll('.prayer-time').forEach(box => {
                 const prayerName = box.querySelector('.label').textContent;
                 if (completedBoxes.includes(`${currentDate}-${prayerName}`)) {
                     box.classList.add('completed');
-                    
-                    // Sync with table cell without triggering the event
-                    syncPrayerBoxWithTableCell(box);
-                } else {
-                    box.classList.remove('completed');
                 }
             });
         }
     }
 
-    // Function to sync table cell with corresponding prayer box
-    function syncTableCellWithPrayerBox(cell) {
+    // Function to sync table cell with prayer box state in localStorage
+    function syncTableCellWithLocalStorage(cell) {
         // Get the row and column index
         const row = cell.parentElement;
         const cellIndex = cell.cellIndex;
         
         // Get the date from the first cell in the row
         const dateText = row.querySelector('td:first-child').textContent.trim();
+        const dateObj = parseTableDateFormat(dateText);
         
-        // Get the current date from the header
+        if (!dateObj) return; // Invalid date format
+        
+        // Format the date to match the format stored in localStorage
+        const fullDateStr = dateObj.toLocaleDateString('en-US', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+        
+        // Determine which prayer based on cell index
+        let prayerName = '';
+        
+        switch (cellIndex) {
+            case 1: // 2nd column (0-indexed)
+                prayerName = 'FAJR';
+                break;
+            case 2: // 3rd column
+                prayerName = 'ZUHR';
+                break;
+            case 3: // 4th column
+                prayerName = 'ASR';
+                break;
+            case 4: // 5th column
+                prayerName = 'MAGHRIB';
+                break;
+            case 5: // 6th column
+                prayerName = 'ISHA';
+                break;
+            default:
+                return; // Not a prayer cell
+        }
+        
+        // Create the key used in localStorage
+        const storageKey = `${fullDateStr}-${prayerName}`;
+        
+        // Get existing saved states
+        const existingSavedBoxes = localStorage.getItem('ramadanCompletedPrayers');
+        if (!existingSavedBoxes) return;
+        
+        let completedBoxes = JSON.parse(existingSavedBoxes);
+        
+        // If cell is completed, add to localStorage if not already there
+        if (cell.classList.contains('completed')) {
+            if (!completedBoxes.includes(storageKey)) {
+                completedBoxes.push(storageKey);
+            }
+        } else {
+            // If cell is not completed, remove from localStorage
+            completedBoxes = completedBoxes.filter(key => key !== storageKey);
+        }
+        
+        // Save back to localStorage
+        localStorage.setItem('ramadanCompletedPrayers', JSON.stringify(completedBoxes));
+        
+        // If this is the current displayed date, update the prayer box UI
         const currentDate = document.querySelector('.date h1').textContent;
-        const formattedCurrentDate = formatDateForTable(new Date(currentDate));
+        if (fullDateStr === currentDate) {
+            restorePrayerBoxStates();
+        }
         
-        // Only sync if the row date matches the current displayed date
-        if (dateText === formattedCurrentDate) {
-            // Determine which prayer based on cell index
-            let prayerName = '';
+        // After updating localStorage, check for completed rows
+        checkCompletedRows();
+    }
+
+    // Helper function to parse date from table format (e.g., "1 Mar") to Date object
+    function parseTableDateFormat(dateText) {
+        try {
+            const [day, monthShort] = dateText.split(' ');
+            const currentYear = new Date().getFullYear();
             
-            switch (cellIndex) {
-                case 2: // 3rd column (0-indexed)
-                    prayerName = 'FAJR';
-                    break;
-                case 3: // 4th column
-                    prayerName = 'ZUHR';
-                    break;
-                case 4: // 5th column
-                    prayerName = 'ASR';
-                    break;
-                case 6: // 7th column
-                    prayerName = 'MAGHRIB';
-                    break;
-                case 7: // 8th column
-                    prayerName = 'ISHA';
-                    break;
-            }
+            // Map of short month names to month numbers (0-based)
+            const monthMap = {
+                'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+                'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+            };
             
-            if (prayerName) {
-                // Find the corresponding prayer box
-                const prayerBoxes = document.querySelectorAll('.prayer-time');
-                let targetBox = null;
-                
-                for (const box of prayerBoxes) {
-                    const boxLabel = box.querySelector('.label').textContent.trim();
-                    if (boxLabel === prayerName) {
-                        targetBox = box;
-                        break;
-                    }
-                }
-                
-                if (targetBox) {
-                    // Update prayer box state to match cell
-                    if (cell.classList.contains('completed')) {
-                        targetBox.classList.add('completed');
-                        
-                        // Add celebration to prayer box if it's being completed
-                        if (!targetBox.querySelector('.celebration')) {
-                            setTimeout(() => createCelebration(targetBox), 50);
-                        }
-                    } else {
-                        targetBox.classList.remove('completed');
-                        
-                        // Remove celebration if uncompleting
-                        const existingCelebration = targetBox.querySelector('.celebration');
-                        if (existingCelebration) {
-                            existingCelebration.remove();
-                        }
-                    }
-                    
-                    // Save prayer box states to localStorage
-                    savePrayerBoxStates();
-                }
-            }
+            // For Ramadan 2025 (March 1-30)
+            const month = monthMap[monthShort];
+            const year = (month === 2 && parseInt(day) >= 1 && parseInt(day) <= 30) ? 2025 : currentYear;
+            
+            return new Date(year, month, parseInt(day));
+        } catch (e) {
+            console.error('Error parsing date:', e);
+            return null;
         }
     }
 
@@ -1076,6 +1470,9 @@ document.addEventListener('DOMContentLoaded', function() {
             header.style.transform = 'none';
             header.style.left = 'auto';
             header.style.top = 'auto';
+            header.style.width = '100%';
+            header.style.maxWidth = 'none';
+            header.style.marginBottom = '10px';
             
             // Fix prayer blocks layout
             const prayerBlocks = document.querySelector('.prayer-blocks');
@@ -1123,14 +1520,14 @@ document.addEventListener('DOMContentLoaded', function() {
             // Fix progress bar with better positioning
             const progressBar = document.querySelector('.progress-bar');
             progressBar.style.position = 'absolute';
-            progressBar.style.left = window.innerWidth <= 480 ? '20%' : '15%';
-            progressBar.style.right = window.innerWidth <= 480 ? '20%' : '15%';
-            progressBar.style.width = window.innerWidth <= 480 ? '60%' : '70%';
+            progressBar.style.left = window.innerWidth <= 480 ? '2%' : '5%';
+            progressBar.style.right = window.innerWidth <= 480 ? '2%' : '5%';
+            progressBar.style.width = window.innerWidth <= 480 ? '96%' : '90%';
             progressBar.style.top = '50%';
             progressBar.style.transform = window.innerWidth <= 480 ? 'translateY(15px)' : 'translateY(10px)';
-            progressBar.style.height = '4px';
+            progressBar.style.height = '6px';
             progressBar.style.backgroundColor = 'var(--border-color)';
-            progressBar.style.borderRadius = '2px';
+            progressBar.style.borderRadius = '3px';
             progressBar.style.zIndex = '1';
             
             // Fix the progress indicator
@@ -1141,8 +1538,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 progress.style.backgroundColor = 'var(--accent-color)';
                 progress.style.left = '0';
                 progress.style.top = '0';
-                progress.style.minWidth = '4px';
-                progress.style.borderRadius = '2px';
+                progress.style.minWidth = '6px';
+                progress.style.borderRadius = '3px';
                 progress.style.zIndex = '1';
                 
                 // Force progress bar to update
@@ -1152,57 +1549,130 @@ document.addEventListener('DOMContentLoaded', function() {
             // Reset to original styles for desktop
             document.body.classList.remove('mobile-view');
             
-            // Re-enable scroll handler
-            window.addEventListener('scroll', headerScrollHandler);
+            // Remove scroll event listener
+            window.removeEventListener('scroll', headerScrollHandler);
             
             // Reset all styles
             header.style = '';
-            header.style.position = 'fixed';
-            header.style.left = '50%';
-            header.style.top = '40%';
-            header.style.transform = 'translate(-50%, -50%)';
+            header.style.position = 'relative';
+            header.style.left = 'auto';
+            header.style.top = 'auto';
+            header.style.transform = 'none';
+            header.style.width = 'calc(100% - 40px)';
+            header.style.maxWidth = '1160px';
+            header.style.marginBottom = '20px';
             
             // Reset table container margin
-            tableContainer.style.marginTop = '65vh';
+            tableContainer.style.marginTop = '20px';
             
             // Reset all other elements
             document.querySelectorAll('.prayer-blocks, .main-times, .progress-bar, .progress, .time-block, .time-block .time, .time-block .label')
                 .forEach(el => el.style = '');
         }
-        
-        // Trigger scroll event to update header state
-        window.dispatchEvent(new Event('scroll'));
     }
 
-    // Store the scroll handler as a named function so we can remove it
-    function headerScrollHandler() {
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-        const header = document.querySelector('.header');
-        const container = document.querySelector('.container');
-        
-        if (scrollTop > 10) {
-            container.classList.add('is-scrolled');
-            
-            // Calculate opacity based on scroll position
-            const opacity = Math.max(0, 1 - (scrollTop / 200));
-            header.style.opacity = opacity;
-            
-            // Calculate vertical movement
-            const moveUp = Math.min(20, (scrollTop < 100 ? scrollTop / 5 : 20));
-            const newTop = 40 - moveUp / 2;
-            header.style.top = `${newTop}%`;
-            
-            // When almost invisible, hide it completely
-            if (opacity < 0.05) {
-                header.style.visibility = 'hidden';
-            } else {
-                header.style.visibility = 'visible';
+    // Add this function to get the user's location
+    function getUserLocation() {
+        return new Promise((resolve, reject) => {
+            // First check if we already have stored coordinates
+            const storedCoords = localStorage.getItem('userCoordinates');
+            if (storedCoords) {
+                resolve(JSON.parse(storedCoords));
+                return;
             }
-        } else {
-            container.classList.remove('is-scrolled');
-            header.style.opacity = 1;
-            header.style.visibility = 'visible';
-            header.style.top = '40%';
+            
+            // If no stored coordinates, show the location permission dialog
+            locationOverlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            
+            // We'll resolve this promise when the user makes a choice
+            // The event listeners for the location buttons will handle this
+            // For now, resolve with default coordinates to prevent hanging
+            const defaultCoords = getDefaultCoordinates();
+            resolve(defaultCoords);
+        });
+    }
+
+    // Update the getHijriDate function with correct Ramadan 2024 dates
+    async function getHijriDate(dateStr) {
+        console.log(`Getting Hijri date for: ${dateStr}, Date object:`, new Date(dateStr));
+        try {
+            // Get user coordinates from localStorage
+            const storedCoords = localStorage.getItem('userCoordinates');
+            let coordinates = getDefaultCoordinates(); // Default coordinates
+            
+            if (storedCoords) {
+                coordinates = JSON.parse(storedCoords);
+            }
+            
+            // Parse the date string to check if it's in Ramadan
+            const date = new Date(dateStr);
+            
+            // IMPORTANT: For March 1, 2024 - this is 1 Ramadan 1445 AH in many countries
+            // This is a hardcoded special case for North America and many other regions
+            if (date.getFullYear() === 2024 && date.getMonth() === 2 && date.getDate() >= 1 && date.getDate() <= 31) {
+                return `${date.getDate()} Ramadan 1445 AH`;
+            }
+            
+            // For April 2024 (continuation of Ramadan 2024)
+            if (date.getFullYear() === 2024 && date.getMonth() === 3 && date.getDate() <= 9) {
+                const ramadanDay = date.getDate() + 31; // April 1 is 32 Ramadan (not possible, but we'll handle this)
+                if (ramadanDay <= 30) {
+                    return `${ramadanDay} Ramadan 1445 AH`;
+                } else {
+                    // After Ramadan ends (30 days), it's Shawwal
+                    const shawwalDay = ramadanDay - 30;
+                    return `${shawwalDay} Shawwal 1445 AH`;
+                }
+            }
+            
+            // For next year - Ramadan 2025 (March 1-30, 2025)
+            if (date.getFullYear() === 2025 && date.getMonth() === 2 && date.getDate() >= 1 && date.getDate() <= 30) {
+                return `${date.getDate()} Ramadan 1446 AH`;
+            }
+            
+            // Include latitude, longitude, and method in the API request for location-specific Hijri date
+            // Method 3 is Muslim World League, which is widely accepted
+            const response = await fetch(`https://api.aladhan.com/v1/gToH?date=${dateStr}&latitude=${coordinates.lat}&longitude=${coordinates.lng}&method=3&adjustment=1`);
+            const data = await response.json();
+            
+            if (data.code === 200 && data.data) {
+                const hijri = data.data.hijri;
+                const islamicDate = `${hijri.day} ${hijri.month.en} ${hijri.year} AH`;
+                return islamicDate;
+            } else {
+                throw new Error('Invalid API response');
+            }
+        } catch (error) {
+            console.error('Error fetching Hijri date:', error);
+            
+            // Fallback to local calculation
+            const date = new Date(dateStr);
+            
+            // Check for Ramadan 2024 in fallback as well
+            if (date.getFullYear() === 2024 && date.getMonth() === 2 && date.getDate() >= 1 && date.getDate() <= 31) {
+                return `${date.getDate()} Ramadan 1445 AH`;
+            }
+            
+            // For April 2024 (continuation of Ramadan 2024)
+            if (date.getFullYear() === 2024 && date.getMonth() === 3 && date.getDate() <= 9) {
+                const ramadanDay = date.getDate() + 31;
+                if (ramadanDay <= 30) {
+                    return `${ramadanDay} Ramadan 1445 AH`;
+                } else {
+                    const shawwalDay = ramadanDay - 30;
+                    return `${shawwalDay} Shawwal 1445 AH`;
+                }
+            }
+            
+            // Check for Ramadan 2025 in fallback as well
+            if (date.getFullYear() === 2025 && date.getMonth() === 2 && date.getDate() >= 1 && date.getDate() <= 30) {
+                return `${date.getDate()} Ramadan 1446 AH`;
+            }
+            
+            const hijriDate = gregorianToHijri(date);
+            const islamicDate = `${hijriDate.day} ${hijriDate.month} ${hijriDate.year} AH`;
+            return islamicDate;
         }
     }
 }); 

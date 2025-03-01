@@ -10,6 +10,26 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="loading">
+    <!-- Location Permission Overlay -->
+    <div class="location-overlay">
+        <div class="location-dialog">
+            <div class="location-icon">
+                <i class="fas fa-mosque"></i>
+            </div>
+            <h2>Welcome to Ramadan Calendar</h2>
+            <p>To show accurate prayer times for your area, we need to know your location.</p>
+            <div class="location-buttons">
+                <button class="location-allow">
+                    <i class="fas fa-map-marker-alt"></i> Use My Current Location
+                </button>
+                <button class="location-default">
+                    <i class="fas fa-globe"></i> Use Default Location
+                </button>
+            </div>
+            <p class="location-note">Your location is only used to calculate prayer times and is never stored on our servers.</p>
+        </div>
+    </div>
+    
     <div class="theme-toggle">
         <button class="theme-button">
             <i class="fas fa-moon"></i>
@@ -28,6 +48,23 @@
                         <input type="radio" name="timeFormat" value="24"> 24-hour
                     </label>
                 </div>
+            </div>
+            
+            <div class="settings-section">
+                <h3>Asr Calculation Method</h3>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="asrMethod" value="standard" checked> Standard (Earlier Asr)
+                    </label>
+                    <label>
+                        <input type="radio" name="asrMethod" value="hanafi"> Hanafi (Later Asr)
+                    </label>
+                </div>
+            </div>
+            
+            <div class="settings-section">
+                <h3>Location</h3>
+                <button class="change-location-btn">Change Location</button>
             </div>
         </div>
     </div>
@@ -89,11 +126,9 @@
                 <thead>
                     <tr>
                         <th>DATE</th>
-                        <th>SEHR</th>
                         <th>FAJR</th>
                         <th>ZUHR</th>
                         <th>ASR</th>
-                        <th>IFTAR</th>
                         <th>MAGHRIB</th>
                         <th>ISHA</th>
                     </tr>
